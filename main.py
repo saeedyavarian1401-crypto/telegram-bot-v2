@@ -3,6 +3,14 @@ import traceback
 from flask import Flask, request
 import requests
 
+# مسیر فایل لاگ
+LOG_FILE = "/tmp/bot_errors.log"
+
+def log_error(error):
+    with open(LOG_FILE, "a") as f:
+        f.write(f"--- خطا در {__name__} ---\n")
+        traceback.print_exc(file=f)
+
 app = Flask(__name__)
 
 TOKEN = "8624726972:AAHa89X4pWrLaD7c-GI3OUjmx7FuSL-5pQQ"
@@ -16,8 +24,8 @@ def send_message(chat_id, text):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     try:
         requests.post(url, json={"chat_id": chat_id, "text": text})
-        print(f"پیام ارسال شد: {text[:50]}")
     except Exception as e:
+        log_error(e)
         print(f"خطا در ارسال: {e}")
 
 def ask_groq(question):
@@ -29,21 +37,18 @@ def ask_groq(question):
     }
     try:
         r = requests.post(url, headers=headers, json=data, timeout=20)
-        print(f"گروک پاسخ داد: {r.status_code}")
         return r.json()["choices"][0]["message"]["content"]
     except Exception as e:
-        print(f"خطا در گروک: {e}")
+        log_error(e)
         return f"❌ خطا: {e}"
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
     try:
         update = request.get_json()
-        print(f"وب هوک فراخوانی شد: {update is not None}")
         if update and 'message' in update:
             chat_id = update['message']['chat']['id']
             text = update['message'].get('text', '')
-            print(f"پیام دریافت شد: {text}")
             if text == '/start':
                 send_message(chat_id, "سلام! من ربات هوشمند کتابخونه‌ات هستم.")
             elif text:
@@ -52,8 +57,7 @@ def webhook():
                 send_message(chat_id, answer)
         return "ok", 200
     except Exception as e:
-        print(f"خطا در وب هوک: {e}")
-        traceback.print_exc()
+        log_error(e)
         return "error", 500
 
 @app.route('/')
